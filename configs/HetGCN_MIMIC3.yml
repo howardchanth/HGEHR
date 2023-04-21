@@ -1,0 +1,33 @@
+#### general settings
+train_type: gnn
+
+#### Checkpoint settings
+checkpoint:
+  path: "./checkpoints/HetGCN"
+  save_checkpoint_freq: 5
+
+#### Optimizer settings
+optimizer:
+  opt_method: "ADAM"
+  lr: 0.0005 # Learning rate
+  weight_decay: 0.001
+
+#### GNN settings
+GNN:
+  name: "HetGCN"
+
+  n_node_types: 6
+
+  num_meta_paths: 3
+  num_layers: 2
+  in_dim: 1024
+  hidden_dim: 512
+  out_dim: 2
+  num_heads: 4
+  num_out_heads: 1
+  feat_drop: 0.2
+
+#### training settings: learning rate scheme, loss, optimizer
+train:
+  num_epochs: 100
+  batch_size: 128
