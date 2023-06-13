@@ -14,8 +14,9 @@ import dgl
 from dgl.nn import GATConv
 from dgl.nn.pytorch.glob import SumPooling, AvgPooling, MaxPooling, GlobalAttentionPooling
 
+from .GNN import GNN
 
-class GAT(nn.Module):
+class GAT(GNN):
     def __init__(self,
                  n_layers,
                  in_dim,
@@ -27,67 +28,62 @@ class GAT(nn.Module):
                  attn_drop,
                  negative_slope,
                  residual,
-                 graph_pooling_type="att"):
-        super(GAT, self).__init__()
-        self.n_layers = n_layers
-        self.layers = nn.ModuleList()
-        self.activation = activation
+                 tasks,
+                 causal):
 
-        for l in range(n_layers + 1):
-            if l == 0:
-                # input projection (no residual)
-                self.layers.append(GATConv(
-                    in_dim, hidden_dim, heads[0],
-                    feat_drop, attn_drop, negative_slope, False, self.activation))
-            elif l == n_layers:  # hidden layers
-                # output projection
-                self.layers.append(GATConv(
-                    hidden_dim * heads[-2], out_dim, heads[-1],
-                    feat_drop, attn_drop, negative_slope, residual, None))
-            else:
-                # due to multi-head, the in_dim = num_hidden * num_heads
-                self.layers.append(GATConv(
-                    hidden_dim * heads[l-1], hidden_dim, heads[l],
-                    feat_drop, attn_drop, negative_slope, residual, self.activation))
+        self.heads = heads
+        self.attn_drop = attn_drop
+        self.negative_slope = negative_slope
+        self.residual = residual
 
-        # Linear function for graph poolings of output of each layer
-        # which maps the output of different layers into a prediction score
-        self.linears_prediction = nn.ModuleList()
-        self.pools = nn.ModuleList()
-        for layer in range(n_layers + 1):
-            if layer == 0:
-                self.linears_prediction.append(
-                    nn.Linear(in_dim, out_dim))
-            else:
-                self.linears_prediction.append(
-                    nn.Linear(hidden_dim * heads[layer-1], out_dim))
+        super().__init__(in_dim, hidden_dim, out_dim, n_layers, activation, feat_drop, tasks, causal)
 
-            if graph_pooling_type == 'sum':
-                self.pools.append(SumPooling())
-            elif graph_pooling_type == 'mean':
-                self.pools.append(AvgPooling())
-            elif graph_pooling_type == 'max':
-                self.pools.append(MaxPooling())
-            elif graph_pooling_type == 'att':
-                if layer == 0:
-                    gate_nn = torch.nn.Linear(in_dim, 1)
-                else:
-                    gate_nn = torch.nn.Linear(hidden_dim * heads[layer-1], 1)
-                self.pools.append(GlobalAttentionPooling(gate_nn))
-            else:
-                raise NotImplementedError
+    def forward(self, g: dgl.DGLHeteroGraph, nt, task):
+        g = dgl.to_homogeneous(g, ndata=["feat"], store_type=True)
+        g = dgl.add_self_loop(g)
 
-    def forward(self, g, h=None):
-        if h is None:
-            h = g.ndata['feat']
+        h = g.ndata["feat"]
+        h = self.get_logit(g, h)
+        h = self.out[task](h)
+        out = h[g.ndata["_TYPE"] == 4]
 
-        h_list = []
-        for i, layer in enumerate(self.layers):
-            pool_h = self.pools[i](g, h)
-            pool_h = self.linears_prediction[i](pool_h)
-            h_list.append(pool_h)
-            h = layer(g, h).flatten(1)
+        if self.causal:
+            h = g.ndata["feat"]
+            feat_rand = self.get_logit(g, h, True)
+            return out, feat_rand
 
-        out = torch.stack(h_list).mean(0)
+        self.set_embeddings(h)
 
         return out
+
+    def get_logit(self, g, h, causal=False):
+        layers = self.layers if not causal else self.rand_layers
+        for i, layer in enumerate(layers):
+            if i != 0:
+                h = self.dropout(h)
+            h = layer(g, h)
+            if i != len(layers) - 1:
+                h = h.flatten(1)
+            else:
+                h = h.mean(1)
+
+        self.embeddings = h
+
+        return h
+
+    def get_layers(self):
+
+        layers = nn.ModuleList()
+        for l in range(self.n_layers):
+            if l == 0:
+                # input projection (no residual)
+                layers.append(GATConv(
+                    self.in_dim, self.hidden_dim, self.heads[0],
+                    self.dor, self.attn_drop, self.negative_slope, False, self.activation))
+            else:
+                # due to multi-head, the in_dim = num_hidden * num_heads
+                layers.append(GATConv(
+                    self.hidden_dim * self.heads[l-1], self.hidden_dim, self.heads[l],
+                    self.dor, self.attn_drop, self.negative_slope, self.residual, self.activation))
+
+        return layers

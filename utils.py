@@ -37,10 +37,13 @@ def ordered_yaml():
 
 
 def acc(outputs, targets):
-    return np.mean(outputs.detach().cpu().numpy().argmax(axis=1) == targets.detach().cpu().numpy())
+    return np.mean(outputs == targets)
 
-def metrics(outputs, targets, average='binary'):
+
+def metrics(outputs, targets, average='binary', prefix="train"):
+    outputs = outputs.softmax(1).detach().cpu().numpy()
     preds = outputs.argmax(1)
+    targets = targets.detach().cpu().numpy()
     precision = precision_score(targets, preds, average=average)
     recall = recall_score(targets, preds, average=average)
     f1 = f1_score(targets, preds, average=average)
@@ -50,7 +53,16 @@ def metrics(outputs, targets, average='binary'):
     else:
         aucroc= roc_auc_score(targets, outputs, multi_class='ovo')
         # aucroc = roc_auc_score(targets, outputs[:,1], multi_class='ovo')
-    return precision, recall, f1, aucroc
+
+    accuracy = acc(preds, targets)
+
+    return {
+        # f"{prefix}_prec": precision,
+        # f"{prefix}_recall": recall,
+        f"{prefix}_accuracy": accuracy,
+        f"{prefix}_auroc": aucroc,
+        f"{prefix}_f1": f1
+    }
 
 def get_logger():
     logger_name = 'main-logger'

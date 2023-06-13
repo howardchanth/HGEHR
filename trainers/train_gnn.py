@@ -7,9 +7,6 @@ from tqdm import tqdm
 import torch
 from torch.nn import functional as F
 
-from dgl.dataloading import DataLoader
-from dgl.dataloading import MultiLayerFullNeighborSampler
-
 import numpy as np
 
 from .trainer import Trainer
@@ -27,8 +24,10 @@ class GNNTrainer(Trainer):
     def __init__(self, config: OrderedDict):
         super().__init__(config)
 
+        self.config_gnn = config["GNN"]
+
         # Initialize GNN model and optimizer
-        self.tasks = ["mort_pred"]
+        self.tasks = ["readm"]
 
         # Load graph, labels and splits
         graph_path = self.config_data["graph_path"]
@@ -48,59 +47,15 @@ class GNNTrainer(Trainer):
         self.gnn = parse_gnn_model(self.config_gnn, self.graph, self.tasks).to(self.device)
         self.optimizer = parse_optimizer(self.config_optim, self.gnn)
 
-    def train_one_step(self):
-        self.optimizer.zero_grad()
-
-        for t in self.tasks:
-            pred = self.gnn(self.graph, "visit", t)
-            prob = F.softmax(pred)
-
-        loss = F.cross_entropy(pred, label)
-
-        loss.backward()
-        self.optimizer.step()
-
-        accuracy = acc(pred, label)
-
-        pred = pred.detach().cpu().numpy().argmax(axis=1)
-        prob = prob.detach().cpu().numpy()
-        label = label.detach().cpu().numpy()
-
-        return loss.item(), accuracy, pred, prob, label
-
-    def evaluate(self):
-
-        for t in self.tasks:
-            indices = self.test_mask[t]
-            labels = torch.LongTensor([self.labels[t][i] for i in indices]).to(self.device)
-
-            d = self.node_dict.copy()
-            d["visit"] = self.node_dict["visit"][indices]
-            sg = self.graph.subgraph(d).to(self.device)
-            with torch.no_grad():
-                preds = self.gnn(sg, "visit", t)
-
-        accuracy = acc(preds, labels)
-        probs = preds.softmax(1).detach().cpu().numpy()
-        labels = labels.detach().cpu().numpy()
-        precision, recall, f1_score, auc = metrics(probs, labels, average="binary")
-
-        return accuracy, f1_score, precision, recall, auc
-
     def train(self) -> None:
-        print(f"Start training Homogeneous GNN")
+        print(f"Start training GNN")
 
         training_range = tqdm(range(self.n_epoch), nrows=3)
-        metrics_log = tqdm(total=0, position=1, bar_format='{desc}')
 
         for epoch in training_range:
             self.gnn.train()
-
-            res = 0
-            pred_list = []
-            prob_list = []
-            label_list = []
-            accuracy_list = []
+            epoch_stats = {"Epoch": epoch + 1}
+            preds, labels = None, None
 
             # Perform aggregation on visits
             self.optimizer.zero_grad()
@@ -115,41 +70,22 @@ class GNNTrainer(Trainer):
                 preds = self.gnn(sg, "visit", t)
                 labels = torch.LongTensor([self.labels[t][i] for i in indices]).to(self.device)
                 loss = F.cross_entropy(preds, labels)
+
             loss.backward()
             self.optimizer.step()
 
-            accuracy = acc(preds, labels)
-            probs = preds.softmax(1).detach().cpu().numpy()
-            labels = labels.detach().cpu().numpy()
-
-            precision, recall, f1_score, train_auc = metrics(probs, labels, average="binary")
+            train_metrics = metrics(preds, labels, average="binary")
 
             # Perform validation and testing
             self.checkpoint_manager.save_model(self.gnn.state_dict())
-            test_acc, test_f1, test_prec, test_recall, test_auc = self.evaluate()
+            test_metrics = self.evaluate()
 
-            training_range.set_description_str("Epoch {} | loss: {:.4f}".format(epoch, loss.item()))
-            metrics_list = (accuracy, f1_score, precision, recall, train_auc,
-                            test_acc, test_f1, test_prec, test_recall, test_auc)
-            metrics_log.set_description_str(
-                "Metrics ==> [Acc: {:.4f} | F1: {:.4f} | Ps: {:.4f} | Rec: {:.4f} | AUC: {:.4f} |"
-                " Test Acc: {:.4f} | Test F1: {:.4f} | Test Ps: {:.4f} | Test Rec: {:.4f} | Test AUC: {:.4f}]".format(*metrics_list)
-            )
+            training_range.set_description_str("Epoch {} | loss: {:.4f}| Train AUC: {:.4f} | Test AUC: {:.4f} | Test ACC: {:.4f} ".format(
+                epoch, loss.item(), train_metrics["train_auroc"], test_metrics["test_auroc"], test_metrics["test_accuracy"]))
 
-            epoch_stats = {
-                "Epoch": epoch + 1,
-                "Train Loss: ": loss.item(),
-                "Training Accuracy": accuracy,
-                "Training Precision": precision,
-                "Training Recall": recall,
-                "Training F1": f1_score,
-                "Training AUC": train_auc,
-                "Testing Accuracy": test_acc,
-                "Testing F1": test_f1,
-                "Testing Precision": test_prec,
-                "Testing Recall": test_recall,
-                "Testing AUC": test_auc,
-            }
+            epoch_stats.update({"Train Loss: ": loss.item()})
+            epoch_stats.update(train_metrics)
+            epoch_stats.update(test_metrics)
 
             # State dict of the model including embeddings
             self.checkpoint_manager.write_new_version(
@@ -160,6 +96,22 @@ class GNNTrainer(Trainer):
 
             # Remove previous checkpoint
             self.checkpoint_manager.remove_old_version()
+
+    def evaluate(self):
+        self.gnn.eval()
+        for t in self.tasks:
+            indices = self.test_mask[t]
+            labels = torch.LongTensor([self.labels[t][i] for i in indices]).to(self.device)
+
+            d = self.node_dict.copy()
+            d["visit"] = self.node_dict["visit"][indices]
+            sg = self.graph.subgraph(d).to(self.device)
+            with torch.no_grad():
+                preds = self.gnn(sg, "visit", t)
+
+        test_metrics = metrics(preds, labels, average="binary", prefix="test")
+
+        return test_metrics
 
     def get_masks(self, g: dgl.DGLGraph, train: bool, task: str):
         if train:
@@ -188,3 +140,31 @@ class GNNTrainer(Trainer):
             labels = [self.labels[task][v] for v in masks]
 
         return masks, labels
+
+    def up_sample(self, scores, label):
+        """
+        Up sample labels to ensure data balance
+        :param scores:
+        :param label:
+        :return:
+        """
+
+    # def train_one_step(self, label):
+    #     self.optimizer.zero_grad()
+    #
+    #     for t in self.tasks:
+    #         pred = self.gnn(self.graph, "visit", t)
+    #         prob = F.softmax(pred)
+    #
+    #     loss = F.cross_entropy(pred, label)
+    #
+    #     loss.backward()
+    #     self.optimizer.step()
+    #
+    #     accuracy = acc(pred, label)
+    #
+    #     pred = pred.detach().cpu().numpy().argmax(axis=1)
+    #     prob = prob.detach().cpu().numpy()
+    #     label = label.detach().cpu().numpy()
+    #
+    #     return loss.item(), accuracy, pred, prob, label

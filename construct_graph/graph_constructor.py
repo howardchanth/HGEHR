@@ -177,9 +177,11 @@ class GraphConstructor:
 
         # Assign drug recommendations
         drug_rec = {}
+        all_drugs = {}
         for s in drug_rec_samples:
             visit_id = s["visit_id"]
             drug_rec.update({vm[visit_id]: s["drugs"]})
+            all_drugs.update({vm[visit_id]: s["all_drugs"]})
 
         # Assign length of stay
         los = {}
@@ -196,6 +198,7 @@ class GraphConstructor:
         labels = {
             "mort_pred": mort_pred,
             "drug_rec": drug_rec,
+            "all_drugs": all_drugs,
             "los": los,
             "readm": readm
         }

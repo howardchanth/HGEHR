@@ -13,13 +13,13 @@ datasets:
 
 #### Checkpoint settings
 checkpoint:
-  path: "./checkpoints/GCN_MIMIC3"
+  path: "./checkpoints/GCN_MIMIC3_READM"
   save_checkpoint_freq: 2
 
 #### Optimizer settings
 optimizer:
   opt_method: "ADAM"
-  lr: 0.0001 # Learning rate
+  lr: 0.001 # Learning rate
   weight_decay: 0.001
 
 #### GNN settings
@@ -29,9 +29,7 @@ GNN:
   in_dim: 128
   hidden_dim: 256
   out_dim: 2
-  num_heads: 4
-  num_out_heads: 1
-  feat_drop: 0.2
+  feat_drop: 0.1
 
 #### training settings: learning rate scheme, loss, optimizer
 train:

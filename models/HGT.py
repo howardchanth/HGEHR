@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .GNN import GNN
+
 
 class HGTLayer(nn.Module):
     def __init__(self, in_dim, out_dim, ntypes, etypes, n_heads, dropout=0.2, use_norm=False):
@@ -95,32 +97,44 @@ class HGTLayer(nn.Module):
             self.num_types, self.num_relations)
 
 
-class HGT(nn.Module):
-    def __init__(self, G, n_inp, n_hid, n_out, n_layers, n_heads, tasks, use_norm=True):
-        super(HGT, self).__init__()
-        self.gcs = nn.ModuleList()
-        self.n_inp = n_inp
-        self.n_hid = n_hid
-        self.n_out = n_out
-        self.n_layers = n_layers
+class HGT(GNN):
+    def __init__(self, G, n_inp, n_hid, n_out, n_layers, n_heads, tasks, causal, dropout, use_norm=True):
+
+        self.n_heads = n_heads
+        self.use_norm = use_norm
+        self.ntypes = G.ntypes
+        self.etypes = G.etypes
+
+        super(HGT, self).__init__(n_inp, n_hid, n_out, n_layers, F.relu, dropout, tasks, causal)
+
         self.adapt_ws = nn.ModuleList()
         for t in range(len(G.ntypes)):
             self.adapt_ws.append(nn.Linear(n_inp, n_hid))
-        for _ in range(n_layers):
-            self.gcs.append(HGTLayer(n_hid, n_hid, G.ntypes, G.etypes, n_heads, use_norm=use_norm))
 
-        self.out = nn.ModuleDict()
-        for t in tasks:
-            self.out[t] = nn.Linear(n_hid, n_out)
+    def forward(self, g, out_key, task):
 
-    def forward(self, G, out_key, task):
-        for n_id, ntype in enumerate(G.ntypes):
-            G.nodes[ntype].data['h'] = torch.tanh(self.adapt_ws[n_id](G.nodes[ntype].data['feat']))
+        logits = self.get_logit(g)
+        g.ndata['feat'] = logits
+        self.embeddings = torch.cat(list(logits.values()))
+        out = self.out[task](logits[out_key])
+        if self.causal:
+            feat_rand = self.get_logit(g, causal=True)
+            feat_rand = torch.cat(list(feat_rand.values()))
+            return out, feat_rand
+
+        return out
+
+    def get_layers(self):
+        layers = nn.ModuleList()
         for i in range(self.n_layers):
-            self.gcs[i](G, 'h', 'h')
-        return self.out[task](G.nodes[out_key].data['h'])
+            layers.append(HGTLayer(self.hidden_dim, self.hidden_dim, self.ntypes, self.etypes, self.n_heads, use_norm=self.use_norm))
 
-    def __repr__(self):
-        return '{}(n_inp={}, n_hid={}, n_out={}, n_layers={})'.format(
-            self.__class__.__name__, self.n_inp, self.n_hid,
-            self.n_out, self.n_layers)
+        return layers
+
+    def get_logit(self, g, h=None, causal=False):
+        layers = self.layers if not causal else self.rand_layers
+        for n_id, ntype in enumerate(self.ntypes):
+            g.nodes[ntype].data['h'] = torch.tanh(self.adapt_ws[n_id](g.nodes[ntype].data['feat']))
+        for i in range(self.n_layers):
+            layers[i](g, 'h', 'h')
+        return g.ndata['h']

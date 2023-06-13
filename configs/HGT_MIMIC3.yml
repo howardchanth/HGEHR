@@ -13,27 +13,27 @@ datasets:
 
 #### Checkpoint settings
 checkpoint:
-  path: "./checkpoints/HGT_MIMIC3"
+  path: "./checkpoints/HGT_MIMIC3_Readm"
   save_checkpoint_freq: 2
 
 #### Optimizer settings
 optimizer:
   opt_method: "ADAM"
-  lr: 0.0001 # Learning rate
+  lr: 0.001 # Learning rate
   weight_decay: 0.001
 
 #### GNN settings
 GNN:
   name: "HGT"
-  num_layers: 1
+  num_layers: 2
   in_dim: 128
   hidden_dim: 256
   out_dim: 2
   num_heads: 4
   num_out_heads: 1
-  feat_drop: 0.1=2
+  feat_drop: 0.1
 
 #### training settings: learning rate scheme, loss, optimizer
 train:
-  num_epochs: 500
+  num_epochs: 200
   batch_size: 4096
