@@ -9,6 +9,7 @@ import torch
 from trainers import (
     GNNTrainer,
     CausalGNNTrainer,
+    CausalSTGNNTrainer,
     BaselinesTrainer
 )
 
@@ -26,7 +27,7 @@ mode = "train"
 
 
 def main():
-    config_file = "HGT_Causal_MIMIC3.yml"
+    config_file = "HGT_Causal_MIMIC4.yml"
     config_path = f"./configs/{config_file}"
 
     with open(config_path, mode='r') as f:
@@ -39,6 +40,8 @@ def main():
             trainer = GNNTrainer(config)
         elif config["train_type"] == "causal-gnn":
             trainer = CausalGNNTrainer(config)
+        elif config["train_type"] == "causal-gnn-st":
+            trainer = CausalSTGNNTrainer(config)
         elif config["train_type"] == "baseline":
             trainer = BaselinesTrainer(config)
         else:

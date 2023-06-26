@@ -1,4 +1,5 @@
 import wandb
+import random
 from collections import OrderedDict
 
 import dgl
@@ -28,7 +29,11 @@ class CausalGNNTrainer(Trainer):
         self.config_gnn = config["GNN"]
 
         # Initialize GNN model and optimizer
-        self.tasks = ["readm", "mort_pred", "los"]
+        self.tasks = [
+            "readm",
+            "mort_pred",
+            # "los", "drug_rec"
+        ]
 
         # Load graph, labels and splits
         graph_path = self.config_data["graph_path"]
@@ -46,6 +51,8 @@ class CausalGNNTrainer(Trainer):
         self.gnn = parse_gnn_model(self.config_gnn, self.graph, self.tasks, causal=True).to(self.device)
         self.optimizer = parse_optimizer(self.config_optim, self.gnn)
 
+        self.causal = self.config_train["causal"]
+
     def train(self) -> None:
         print(f"Start training GNN")
 
@@ -59,6 +66,7 @@ class CausalGNNTrainer(Trainer):
 
             # Perform aggregation on visits
             self.optimizer.zero_grad()
+            random.shuffle(self.tasks)
             for t in self.tasks:
 
                 indices, labels = self.get_indices_labels(t)
@@ -67,9 +75,13 @@ class CausalGNNTrainer(Trainer):
 
                 preds, rand_feat = self.gnn(sg, "visit", t)
 
-                unif_loss = self.unif_loss(rand_feat)
+                unif_loss = self.unif_loss(rand_feat) if self.causal else 0
 
-                loss = F.cross_entropy(preds, labels) + unif_loss * 0.001
+                if t == "drug_rec":
+                    preds = preds.sigmoid()
+                    loss = F.binary_cross_entropy(preds, labels) + unif_loss * 0.001
+                else:
+                    loss = F.cross_entropy(preds, labels) + unif_loss * 0.001
                 losses.append(loss.view(-1))
 
             var, mean = torch.var_mean(torch.cat(losses))
@@ -78,16 +90,16 @@ class CausalGNNTrainer(Trainer):
 
             self.optimizer.step()
 
-            train_metrics = metrics(preds, labels, average="weighted")
+            train_metrics = metrics(preds, labels, "readm")
             # Perform validation and testing
             test_metrics = self.evaluate()
 
             training_range.set_description_str(
                 "Epoch {} | loss: {:.4f}| Train AUC: {:.4f} | Test AUC: {:.4f} | Test ACC: {:.4f} ".format(
                     epoch, loss.item(),
-                    train_metrics["train_auroc"],
-                    test_metrics["readm_test_auroc"],
-                    test_metrics["readm_test_accuracy"]
+                    train_metrics["tr_accuracy"],
+                    test_metrics["readm_roc_auc"],
+                    test_metrics["readm_accuracy"]
                 )
             )
 
@@ -108,20 +120,15 @@ class CausalGNNTrainer(Trainer):
     def evaluate(self):
         self.gnn.eval()
         test_metrics = {}
-        for t in ["readm", "mort_pred", "los"]:
-            if t in ["readm", "mort_pred"]:
-                avg = "binary"
-            else:
-                avg = 'weighted'
-            indices = self.test_mask[t]
-            labels = torch.LongTensor([self.labels[t][i] for i in indices]).to(self.device)
+        for t in self.tasks:
+            indices, labels = self.get_indices_labels(t, False, -1)
 
             sg = self.get_subgraphs(indices, "visit")
 
             with torch.no_grad():
                 preds, _ = self.gnn(sg, "visit", t)
 
-            test_metrics.update(metrics(preds, labels, average=avg, prefix=f"{t}_test"))
+            test_metrics.update(metrics(preds, labels, t, prefix=f"{t}"))
 
         return test_metrics
 
@@ -166,12 +173,23 @@ class CausalGNNTrainer(Trainer):
 
         return sg
 
-    def get_indices_labels(self, t, cap=5000):
-        indices = self.train_mask[t]
-        indices = indices[torch.randperm(len(indices))[:cap]]
-        labels = torch.LongTensor([self.labels[t][i] for i in indices]).to(self.device)
+    def get_indices_labels(self, t, train=True, cap=3000):
+        indices = self.train_mask[t] if train else self.test_mask[t]
+        if cap > 0:
+            indices = indices[torch.randperm(len(indices))[:cap]]
 
-        if t == "mort":
+        if t == "drug_rec":
+            all_drugs = self.train_mask["all_drugs"]
+            labels = []
+            for i in indices:
+                drugs = self.labels[t][i]
+                labels.append([1 if d in drugs else 0 for d in all_drugs])
+            labels = torch.FloatTensor(labels).to(self.device)
+
+        else:
+            labels = torch.LongTensor([self.labels[t][i] for i in indices]).to(self.device)
+
+        if t == "mort" and train:
             indices = self.down_sample(indices, labels)
             labels = torch.LongTensor([self.labels[t][i] for i in indices]).to(self.device)
 

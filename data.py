@@ -31,6 +31,10 @@ def load_graph(graph_path, labels_path, feat_dim=128):
     train_masks = {}
     test_masks = {}
     for k, lb in labels.items():
+        if k == "all_drugs":
+            train_masks.update({k: lb})
+            test_masks.update({k: lb})
+            continue
         indices = np.random.permutation(len(lb))
         split = int(0.8 * len(lb))
 

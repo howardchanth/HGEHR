@@ -1,4 +1,4 @@
-mimic3_raw: "physionet.org/mimiciv/"
+raw: "physionet.org/mimiciv/hosp"
 dataset_name: "mimic4_dp"  # d: +diagnosis table; p: + procedure table
 processed_path: "./data/mimic4_objects/"
 graph_output_path: "./data/graphs/"

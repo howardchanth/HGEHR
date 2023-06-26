@@ -1,5 +1,5 @@
 #### general settings
-name: HGT_Causal_MIMIC3_RML
+name: HGT_MTCausal_MIMIC3_RM
 train_type: causal-gnn
 eval_type: homo-graph
 gpu_ids: '0'
@@ -13,7 +13,7 @@ datasets:
 
 #### Checkpoint settings
 checkpoint:
-  path: "./checkpoints/HGT_Causal_MIMIC3_RML"
+  path: "./checkpoints/HGT_Causal_MIMIC3_RM"
   save_checkpoint_freq: 2
 
 #### Optimizer settings
@@ -25,9 +25,9 @@ optimizer:
 #### GNN settings
 GNN:
   name: "HGT"
-  num_layers: 1
+  num_layers: 2
   in_dim: 128
-  hidden_dim: 128
+  hidden_dim: 64
   out_dim: 2
   num_heads: 2
   num_out_heads: 1
@@ -37,3 +37,4 @@ GNN:
 train:
   num_epochs: 500
   batch_size: 4096
+  causal: True

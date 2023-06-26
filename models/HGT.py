@@ -114,7 +114,6 @@ class HGT(GNN):
     def forward(self, g, out_key, task):
 
         logits = self.get_logit(g)
-        g.ndata['feat'] = logits
         self.embeddings = torch.cat(list(logits.values()))
         out = self.out[task](logits[out_key])
         if self.causal:

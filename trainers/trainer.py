@@ -33,7 +33,7 @@ class Trainer(ABC):
         self.use_gpu = True if self.device == "cuda" else False
 
         # Set loggers
-        self.initialize_logger(config["name"])
+        # self.initialize_logger(config["name"])
 
     def train(self) -> None:
         raise NotImplementedError

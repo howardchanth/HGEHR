@@ -6,12 +6,16 @@ import pandas as pd
 
 import pickle
 
-from pyhealth.datasets import MIMIC3Dataset
+from pyhealth.datasets import MIMIC3Dataset, MIMIC4Dataset
 from pyhealth.tasks import (
     drug_recommendation_mimic3_fn,
     mortality_prediction_mimic3_fn,
     length_of_stay_prediction_mimic3_fn,
-    readmission_prediction_mimic3_fn
+    readmission_prediction_mimic3_fn,
+    drug_recommendation_mimic4_fn,
+    mortality_prediction_mimic4_fn,
+    length_of_stay_prediction_mimic4_fn,
+    readmission_prediction_mimic4_fn
 )
 
 
@@ -26,7 +30,7 @@ class GraphConstructor:
         self.cache_path = config_graph["processed_path"]
         self.graph_path = config_graph["graph_output_path"]
 
-        self.mimic3_ds = None
+        self.dataset = None
         self.graph = None
         self.mappings = None
 
@@ -34,14 +38,25 @@ class GraphConstructor:
 
     def load_mimic(self):
         # Get mimic dataset from
-        raw_path = self.config_graph["mimic3_raw"]
-        self.mimic3_ds = MIMIC3Dataset(
-            root=raw_path,
-            tables=["DIAGNOSES_ICD", "PROCEDURES_ICD", "PRESCRIPTIONS", "LABEVENTS"],
-            # tables=["DIAGNOSES_ICD"],
-            code_mapping={},
-            dev=False,
-        )
+        raw_path = self.config_graph["raw"]
+
+        if "mimiciii" in raw_path:
+            self.dataset = MIMIC3Dataset(
+                root=raw_path,
+                tables=["DIAGNOSES_ICD", "PROCEDURES_ICD", "PRESCRIPTIONS", "LABEVENTS"],
+                # tables=["DIAGNOSES_ICD"],
+                code_mapping={},
+                dev=False,
+            )
+        elif "mimiciv" in raw_path:
+            self.dataset = MIMIC4Dataset(
+                root=raw_path,
+                tables=["diagnoses_icd", "procedures_icd", "prescriptions", "labevents"],
+                code_mapping={},
+                dev=False,
+            )
+        else:
+            raise NotImplementedError
 
     def construct_graph(self):
         # Construct graph with the loaded datasets and tables
@@ -61,7 +76,7 @@ class GraphConstructor:
 
         # TODO: load gender and sex as attribute nodes to patients
 
-        patients = self.mimic3_ds.patients
+        patients = self.dataset.patients
 
         # Dictionaries of indices
         patients_dict = {k: i for i, k in enumerate(patients.keys())}
@@ -89,24 +104,24 @@ class GraphConstructor:
 
                 for table in visit.available_tables:
                     # Load diagnosis
-                    if table == "DIAGNOSES_ICD":
-                        for ev in ev_dict["DIAGNOSES_ICD"]:
+                    if table.upper() == "DIAGNOSES_ICD":
+                        for ev in ev_dict[table]:
                             diagnosis_set.add(ev.code)
                             visit_diagnosis_edges.append((ev.visit_id, ev.code))
 
-                    if table == "PROCEDURES_ICD":
+                    if table.upper() == "PROCEDURES_ICD":
                         # Load procedure
-                        for ev in ev_dict["PROCEDURES_ICD"]:
+                        for ev in ev_dict[table]:
                             procedures_set.add(ev.code)
                             visit_procedure_edges.append((ev.visit_id, ev.code))
-                    if table == "PRESCRIPTIONS":
+                    if table.upper() == "PRESCRIPTIONS":
                         # Load prescriptions
-                        for ev in ev_dict["PRESCRIPTIONS"]:
+                        for ev in ev_dict[table]:
                             prescriptions_set.add(ev.code)
                             visit_prescription_edges.append((ev.visit_id, ev.code))
-                    if table == "LABEVENTS":
+                    if table.upper() == "LABEVENTS":
                         # Load prescriptions
-                        for ev in ev_dict["LABEVENTS"]:
+                        for ev in ev_dict[table]:
                             labevents_set.add(ev.code)
                             visit_labevent_edges.append((ev.visit_id, ev.code))
 
@@ -160,10 +175,8 @@ class GraphConstructor:
         return graph_data
 
     def set_tasks(self):
-        mort_pred_samples = self.mimic3_ds.set_task(mortality_prediction_mimic3_fn)
-        drug_rec_samples = self.mimic3_ds.set_task(drug_recommendation_mimic3_fn)
-        los_samples = self.mimic3_ds.set_task(length_of_stay_prediction_mimic3_fn)
-        readm_samples = self.mimic3_ds.set_task(readmission_prediction_mimic3_fn)
+
+        mort_pred_samples, drug_rec_samples, los_samples, readm_samples = self.get_sample_datasets()
 
         vm = self.mappings["visit"]
         n_nodes = self.graph.num_nodes("visit")
@@ -181,7 +194,6 @@ class GraphConstructor:
         for s in drug_rec_samples:
             visit_id = s["visit_id"]
             drug_rec.update({vm[visit_id]: s["drugs"]})
-            all_drugs.update({vm[visit_id]: s["all_drugs"]})
 
         # Assign length of stay
         los = {}
@@ -198,12 +210,28 @@ class GraphConstructor:
         labels = {
             "mort_pred": mort_pred,
             "drug_rec": drug_rec,
-            "all_drugs": all_drugs,
+            "all_drugs": drug_rec_samples.get_all_tokens("drugs"),
             "los": los,
             "readm": readm
         }
 
         self.save_labels(labels)
+
+    def get_sample_datasets(self):
+        if "mimic3" in self.dataset_name:
+            mort_pred_samples = self.dataset.set_task(mortality_prediction_mimic3_fn)
+            drug_rec_samples = self.dataset.set_task(drug_recommendation_mimic3_fn)
+            los_samples = self.dataset.set_task(length_of_stay_prediction_mimic3_fn)
+            readm_samples = self.dataset.set_task(readmission_prediction_mimic3_fn)
+        elif "mimic4" in self.dataset_name:
+            mort_pred_samples = self.dataset.set_task(mortality_prediction_mimic4_fn)
+            drug_rec_samples = self.dataset.set_task(drug_recommendation_mimic4_fn)
+            los_samples = self.dataset.set_task(length_of_stay_prediction_mimic4_fn)
+            readm_samples = self.dataset.set_task(readmission_prediction_mimic4_fn)
+        else:
+            raise ValueError
+
+        return mort_pred_samples, drug_rec_samples, los_samples, readm_samples
 
     def get_mimic_dataset(self):
         with open(f'{self.cache_path}{self.dataset_name}', 'rb') as inp:

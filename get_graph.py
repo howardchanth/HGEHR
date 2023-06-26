@@ -8,13 +8,12 @@ import yaml
 
 
 def main():
-
-    opt_path = "construct_graph/MIMIC3.yml"
+    opt_path = "construct_graph/MIMIC4.yml"
     opt_path = Path("./configs") / opt_path
     with open(opt_path, mode='r') as f:
-            loader, _ = ordered_yaml()
-            config = yaml.load(f, loader)
-            print(f"Loaded configs from {opt_path}")
+        loader, _ = ordered_yaml()
+        config = yaml.load(f, loader)
+        print(f"Loaded configs from {opt_path}")
 
     graph_constructor = GraphConstructor(config)
 
@@ -23,6 +22,7 @@ def main():
     graph_constructor.set_tasks()
     graph_constructor.initialize_features()
     graph_constructor.save_graph()
+
 
 if __name__ == '__main__':
     main()

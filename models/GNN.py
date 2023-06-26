@@ -34,11 +34,11 @@ class GNN(nn.Module):
         self.out = nn.ModuleDict()
         for t in tasks:
             if t in ["readm", "mort_pred"]:
-                self.out[t] = nn.Linear(hidden_dim, out_dim)
+                self.out[t] = nn.Linear(hidden_dim, 2)
             elif t == "los":
                 self.out[t] = nn.Linear(hidden_dim, 10)
             elif t == "drug_rec":
-                self.out[t] = nn.Linear(hidden_dim, 351)
+                self.out[t] = nn.Linear(hidden_dim, out_dim)
         if causal:
             self.rand_layers = self.get_layers()
             self.out_rand = nn.ModuleDict()
