@@ -22,6 +22,7 @@ def main():
     graph_constructor.set_tasks()
     graph_constructor.initialize_features()
     graph_constructor.save_graph()
+    graph_constructor.save_mimic_dataset()
 
 
 if __name__ == '__main__':

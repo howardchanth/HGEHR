@@ -30,6 +30,9 @@ class CausalSTGNNTrainer(Trainer):
     def __init__(self, config: OrderedDict):
         super().__init__(config)
 
+        # Set loggers
+        self.initialize_logger(config["name"])
+
         self.config_gnn = config["GNN"]
 
         # Initialize GNN model and optimizer
@@ -38,7 +41,8 @@ class CausalSTGNNTrainer(Trainer):
         # Load graph, labels and splits
         graph_path = self.config_data["graph_path"]
         labels_path = self.config_data["labels_path"]
-        self.graph, self.labels, self.train_mask, self.test_mask = load_graph(graph_path, labels_path)
+        pretrained = self.config_data["pretrained"]
+        self.graph, self.labels, self.train_mask, self.test_mask = load_graph(graph_path, labels_path, pretrained)
 
         # Transform the graph
         self.graph = dgl.AddReverse()(self.graph)
@@ -129,6 +133,32 @@ class CausalSTGNNTrainer(Trainer):
 
         return test_metrics
 
+    def visualize_embeddings(self):
+        fig = go.Figure()
+        indices = self.get_indices_by_type()
+        embeddings = self.gnns["readm"].embeddings.detach().cpu().numpy()[indices]
+
+        tsne = Isomap(n_components=2)
+        embeddings_2d = tsne.fit_transform(embeddings)
+
+        # Create a scatter plot of the embeddings using Plotly
+        layout = go.Layout(
+            autosize=False,
+            width=600,
+            height=600
+        )
+        fig = go.Figure(data=go.Scatter(x=embeddings_2d[:, 0], y=embeddings_2d[:, 1], mode='markers'), layout=layout)
+        wandb.log({"chart": fig})
+
+    def get_indices_by_type(self):
+        indices = []
+        offset = 0
+        for k, v in self.node_dict.items():
+            indices += [i for i in range(offset, offset + 250)]
+            offset += len(v)
+
+        return np.array(indices)
+
     def unif_loss(self, feat):
         loss_fcn = KLDivergence()
         unif_feat = torch.rand_like(feat).to(self.device)
@@ -210,30 +240,6 @@ class CausalSTGNNTrainer(Trainer):
         wandb.log({"loss": loss})
         wandb.log(train_metrics)
         wandb.log(test_metrics)
-
-    def visualize_embeddings(self):
-        indices = self.get_indices_by_type()
-        embeddings = self.gnns["readm"].embeddings.detach().cpu().numpy()[indices]
-
-        tsne = Isomap(n_components=2)
-        embeddings_2d = tsne.fit_transform(embeddings)
-
-        # Create a scatter plot of the embeddings using Plotly
-        layout = go.Layout(
-            autosize=False,
-            width=600,
-            height=600)
-        fig = go.Figure(data=go.Scatter(x=embeddings_2d[:, 0], y=embeddings_2d[:, 1], mode='markers'), layout=layout)
-        wandb.log({"chart": fig})
-
-    def get_indices_by_type(self):
-        indices = []
-        offset = 0
-        for k, v in self.node_dict.items():
-            indices += [i for i in range(offset, offset + 250)]
-            offset += len(v)
-
-        return np.array(indices)
 
     def set_mode(self, mode):
         if mode == "train":

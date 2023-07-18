@@ -1,7 +1,5 @@
 import yaml
-from utils import ordered_yaml
-
-import argparse
+from utils import ordered_yaml, load_config
 
 import random
 import torch
@@ -9,8 +7,11 @@ import torch
 from trainers import (
     GNNTrainer,
     CausalGNNTrainer,
-    CausalSTGNNTrainer,
     BaselinesTrainer
+)
+
+from pretrainers import (
+    Pretrainer
 )
 
 # Set seed
@@ -21,32 +22,33 @@ torch.manual_seed(seed)
 #############################################################
 # Set modes:
 # train: initialize trainer for classification
-# eval: Evaluate the trained model quantitatively
+# pretrain: pretrain the node embeddings
+# eval: Evaluate the trained model
 #############################################################
 mode = "train"
+# mode = "pretrain"
 
 
 def main():
-    config_file = "HGT_Causal_MIMIC4.yml"
-    config_path = f"./configs/{config_file}"
-
-    with open(config_path, mode='r') as f:
-        loader, _ = ordered_yaml()
-        config = yaml.load(f, loader)
-        print(f"Loaded configs from {config_path}")
-
     if mode == "train":
+        config_name = "HGT_Causal_MIMIC4.yml"
+        config = load_config(config_name)
+
         if config["train_type"] == "gnn":
             trainer = GNNTrainer(config)
         elif config["train_type"] == "causal-gnn":
             trainer = CausalGNNTrainer(config)
-        elif config["train_type"] == "causal-gnn-st":
-            trainer = CausalSTGNNTrainer(config)
         elif config["train_type"] == "baseline":
             trainer = BaselinesTrainer(config)
         else:
             raise NotImplementedError("This type of model is not implemented")
         trainer.train()
+    elif mode == "pretrain":
+        config_name = "MIMIC4_TransE.yml"
+        config = load_config(config_name, "./configs/pretrain/")
+
+        pretrainer = Pretrainer(config)
+        pretrainer.train()
 
 
 if __name__ == "__main__":

@@ -34,26 +34,21 @@ def ordered_yaml():
     Loader.add_constructor(_mapping_tag, dict_constructor)
     return Loader, Dumper
 
+def load_config(name, config_dir="./configs/"):
+    config_path = f"{config_dir}{name}"
+
+    with open(config_path, mode='r') as f:
+        loader, _ = ordered_yaml()
+        config = yaml.load(f, loader)
+        print(f"Loaded configs from {config_path}")
+    return config
+
 
 def acc(outputs, targets):
     return np.mean(outputs == targets)
 
 
 def metrics(outputs, targets, t, prefix="tr"):
-    # outputs = outputs.softmax(1).detach().cpu().numpy()
-    # preds = outputs.argmax(1)
-    # targets = targets.detach().cpu().numpy()
-    # precision = precision_score(targets, preds, average=average)
-    # recall = recall_score(targets, preds, average=average)
-    # f1 = f1_score(targets, preds, average=average)
-    # if average == 'binary':
-    #     fpr, tpr, thresholds = roc_curve(targets, preds)
-    #     aucroc = auc(fpr, tpr)
-    # else:
-    #     aucroc= roc_auc_score(targets, outputs, multi_class='ovo')
-    #     # aucroc = roc_auc_score(targets, outputs[:,1], multi_class='ovo')
-
-    # accuracy = acc(preds, targets)
 
     if t in ["mort_pred", "readm"]:
         met = binary_metrics_fn(
@@ -70,8 +65,8 @@ def metrics(outputs, targets, t, prefix="tr"):
     elif t == "drug_rec":
         met = multilabel_metrics_fn(
             targets.detach().cpu().numpy(),
-            outputs.softmax(1).detach().cpu().numpy(),
-            metrics=["roc_auc_samples", "pr_auc_samples", "accuracy", "f1_samples"]
+            outputs.detach().cpu().numpy(),
+            metrics=["roc_auc_samples", "pr_auc_samples", "accuracy", "f1_weighted", "jaccard_weighted"]
         )
     else:
         raise ValueError

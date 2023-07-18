@@ -5,7 +5,7 @@ import pickle
 import torch
 
 
-def load_graph(graph_path, labels_path, feat_dim=128):
+def load_graph(graph_path, labels_path, feat_dim=128, pretrained=None):
 
     # Load graph from cache
     with open(graph_path, 'rb') as inp:
@@ -20,12 +20,20 @@ def load_graph(graph_path, labels_path, feat_dim=128):
     n_node_types = len(g.ntypes)
 
     # Set masks for entities
-    for tp in g.ntypes:
-        n_nodes = g.num_nodes(tp)
+    if not pretrained:
+        for tp in g.ntypes:
+            n_nodes = g.num_nodes(tp)
 
-        # Initialize features
-        feat = torch.randn(n_nodes, feat_dim)
-        g.nodes[tp].data["feat"] = feat
+            # Initialize features
+            feat = torch.randn(n_nodes, feat_dim)
+            g.nodes[tp].data["feat"] = feat
+    else:
+        with open(pretrained, 'rb') as inp:
+            unp = pickle.Unpickler(inp)
+            pre_g = unp.load()
+
+            g.ndata["feat"] = pre_g.ndata["feat"].copy()
+            del pre_g
 
     # Arrange masks by tasks
     train_masks = {}

@@ -116,17 +116,20 @@ class HGT(GNN):
         logits = self.get_logit(g)
         self.embeddings = torch.cat(list(logits.values()))
         out = self.out[task](logits[out_key])
+
         if self.causal:
             feat_rand = self.get_logit(g, causal=True)
+            feat_interv = {k: logits[k] + feat_rand[k] for k in feat_rand.keys()}
+            out_interv = self.out[task](feat_interv[out_key])
             feat_rand = torch.cat(list(feat_rand.values()))
-            return out, feat_rand
+            return out, feat_rand, out_interv
 
         return out
 
     def get_layers(self):
         layers = nn.ModuleList()
         for i in range(self.n_layers):
-            layers.append(HGTLayer(self.hidden_dim, self.hidden_dim, self.ntypes, self.etypes, self.n_heads, use_norm=self.use_norm))
+            layers.append(HGTLayer(self.hidden_dim, self.hidden_dim, self.ntypes, self.etypes, self.n_heads, self.dor, use_norm=self.use_norm))
 
         return layers
 

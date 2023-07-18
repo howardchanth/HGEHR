@@ -1,13 +1,13 @@
-from abc import ABC
-from collections import OrderedDict
+import torch
+from torch import nn
 
-import wandb
+from abc import ABC
 
 from checkpoint import CheckpointManager
 
 
-class Trainer(ABC):
-    def __init__(self, config: OrderedDict) -> None:
+class Explainer(ABC):
+    def __init__(self, config):
         # Categorize configurations
         self.config = config
         self.config_data = config["datasets"]
@@ -31,14 +31,3 @@ class Trainer(ABC):
         self.gpu_ids = config['gpu_ids']
         self.device = "cuda" if config['gpu_ids'] else "cpu"
         self.use_gpu = True if self.device == "cuda" else False
-
-    def train(self) -> None:
-        raise NotImplementedError
-
-    def initialize_logger(self, name, notes=""):
-        tags = self.config["logging"]["tags"]
-        wandb.init(name=name,
-                   project='MT_EHR',
-                   notes=notes,
-                   config=self.config,
-                   tags=tags)

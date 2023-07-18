@@ -1,0 +1,48 @@
+GCN:
+  name: "GCN"
+  num_layers: 2
+  in_dim: 128
+  hidden_dim: 64
+  out_dim: 351
+  feat_drop: 0.1
+
+GAT:
+  name: "GAT"
+  num_layers: 2
+  in_dim: 128
+  hidden_dim: 64
+  out_dim: 351
+  attn_drop: 0.2
+  feat_drop: 0.1
+  num_heads: 2
+  num_out_heads: 1
+  negative_slope: 0.1
+
+GIN:
+  name: "GIN"
+  num_layers: 2
+  num_mlp_layers: 1
+  in_dim: 128
+  hidden_dim: 64
+  out_dim: 351
+  feat_drop: 0.1
+
+  neighbor_pooling_type: mean
+
+HGT:
+  name: "HGT"
+  num_layers: 2
+  in_dim: 128
+  hidden_dim: 64
+  out_dim: 351
+  num_heads: 4
+  num_out_heads: 1
+  feat_drop: 0.1
+
+HetRGCN:
+  name: "HetRGCN"
+  num_layers: 2
+  in_dim: 128
+  hidden_dim: 64
+  out_dim: 351
+  feat_drop: 0.1

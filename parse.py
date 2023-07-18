@@ -17,11 +17,14 @@ from pyhealth.models import (
     AdaCare,
     ConCare,
     StageNet,
+    Deepr,
     Agent,
     GRASP,
     SparcNet,
     MICRON,
-    MoleRec
+    MoleRec,
+    GAMENet,
+    SafeDrug
 )
 
 
@@ -190,6 +193,13 @@ def parse_baselines(dataset, baseline_name, mode, label_key):
             label_key=label_key,
             mode=mode
         )
+    elif baseline_name == "Deepr":
+        return Deepr(
+            dataset=dataset,
+            feature_keys=["conditions", "procedures"],
+            label_key=label_key,
+            mode=mode
+        )
     elif baseline_name == "RNN":
         return RNN(
             dataset=dataset,
@@ -227,6 +237,17 @@ def parse_baselines(dataset, baseline_name, mode, label_key):
         return MoleRec(
             dataset=dataset
         )
+    elif baseline_name == "GAMENet":
+        return GAMENet(
+            dataset=dataset
+        )
+    elif baseline_name == "SafeDrug":
+        return SafeDrug(
+            dataset=dataset
+        )
+    else:
+        raise NotImplementedError("This baseline is not implemented")
+
 
 def parse_loss(config_train):
     loss_name = config_train["loss"]

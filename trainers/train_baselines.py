@@ -10,14 +10,20 @@ from pyhealth.tasks import (
     drug_recommendation_mimic3_fn,
     readmission_prediction_mimic3_fn,
     mortality_prediction_mimic3_fn,
-    length_of_stay_prediction_mimic3_fn
+    length_of_stay_prediction_mimic3_fn,
+    drug_recommendation_mimic4_fn,
+    readmission_prediction_mimic4_fn,
+    mortality_prediction_mimic4_fn,
+    length_of_stay_prediction_mimic4_fn
 )
-from pyhealth.datasets import split_by_patient, get_dataloader
+from pyhealth.datasets import split_by_patient, get_dataloader, split_by_visit
 
 from collections import OrderedDict
 
 from .trainer import Trainer as MyTrainer
 from parse import parse_baselines
+
+import plotly.graph_objects as go
 
 
 class BaselinesTrainer(MyTrainer):
@@ -31,7 +37,7 @@ class BaselinesTrainer(MyTrainer):
         metrics = self.set_mode_metrics(task)
 
         mimic3sample = self.set_task(task, mimic3base)  # use default task
-        train_ds, val_ds, test_ds = split_by_patient(mimic3sample, [0.8, 0.1, 0.1])
+        train_ds, val_ds, test_ds = split_by_visit(mimic3sample, [0.8, 0.1, 0.1])
 
         # create dataloaders (torch.data.DataLoader)
         self.train_loader = get_dataloader(train_ds, batch_size=32, shuffle=True)
@@ -54,19 +60,30 @@ class BaselinesTrainer(MyTrainer):
             monitor=self.monitor,
         )
 
-    def set_task(self, task, mimic3base):
+    def visualize_embeddings(self):
+
+        layout = go.Layout(
+            autosize=False,
+            width=600,
+            height=600)
+        fig = go.Figure(layout=layout)
+
+        embeddings = self.trainer.model.embeddings
+
+    def set_task(self, task, base_dataset):
+        name = self.config_data["name"]
         if task == "readm":
-            mimic3sample = mimic3base.set_task(task_fn=readmission_prediction_mimic3_fn)
+            sample_dataset = base_dataset.set_task(task_fn=globals()[f"readmission_prediction_{name}_fn"])
         elif task == "mort_pred":
-            mimic3sample = mimic3base.set_task(task_fn=mortality_prediction_mimic3_fn)
+            sample_dataset = base_dataset.set_task(task_fn=globals()[f"mortality_prediction_{name}_fn"])
         elif task == "los":
-            mimic3sample = mimic3base.set_task(task_fn=length_of_stay_prediction_mimic3_fn)
+            sample_dataset = base_dataset.set_task(task_fn=globals()[f"length_of_stay_prediction_{name}_fn"])
         elif task == "drug_rec":
-            mimic3sample = mimic3base.set_task(task_fn=drug_recommendation_mimic3_fn)
+            sample_dataset = base_dataset.set_task(task_fn=globals()[f"drug_recommendation_{name}_fn"])
         else:
             raise NotImplementedError
 
-        return mimic3sample
+        return sample_dataset
 
     def set_mode_metrics(self, task):
         if task in ["readm", "mort_pred"]:
@@ -81,6 +98,6 @@ class BaselinesTrainer(MyTrainer):
             return ["accuracy", "f1_macro", "roc_auc_weighted_ovo"]
         elif task == "drug_rec":
             self.mode = "multilabel"
-            self.monitor = "accuracy"
+            self.monitor = "pr_auc_weighted"
             self.label_key = "drugs"
-            return ["accuracy", "f1_macro", "roc_auc_samples"]
+            return ["accuracy", "f1_macro", "roc_auc_samples", "jaccard_weighted", "pr_auc_weighted"]

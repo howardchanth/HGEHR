@@ -240,7 +240,9 @@ class GraphConstructor:
 
         return mimic3_ds
 
-    def save_mimic_dataset(self, mimic3_ds):
+    def save_mimic_dataset(self, mimic3_ds=None):
+        if mimic3_ds is None:
+            mimic3_ds = self.dataset
         # Save a copy to cache
         with open(f'{self.cache_path}{self.dataset_name}.pkl', 'wb') as outp:
             pickle.dump(mimic3_ds, outp, pickle.HIGHEST_PROTOCOL)
