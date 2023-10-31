@@ -20,18 +20,18 @@ def benchmark_baselines(config):
         mimic3base = unp.load()
 
     for method in [
-        "DrAgent",
-        "StageNet",
-        "AdaCare",
+        # "DrAgent",
+        # "StageNet",
+        # "AdaCare",
         # "Transformer",
-        "RNN",
-        "ConCare",
-        "GRSAP",
-        "Deepr",
-        "MICRON",
-        "GAMENet",
+        # "RNN",
+        # "ConCare",
+        # "GRSAP",
+        # "Deepr",
+        # "MICRON",
+        # "GAMENet",
         "MoleRec",
-        "SafeDrug",
+        # "SafeDrug",
         # "SparcNet",
     ]:
         for task in [
@@ -128,6 +128,7 @@ seed = 611
 random.seed(seed)
 torch.manual_seed(seed)
 
+# config_file = "Baselines_MIMIC4.yml"
 config_file = "HGT_Causal_MIMIC3.yml"
 config_path = f"./configs/{config_file}"
 
@@ -137,8 +138,8 @@ with open(config_path, mode='r') as f:
     print(f"Loaded configs from {config_path}")
 
 if __name__ == "__main__":
-    # benchmark_baselines(config)[
+    # benchmark_baselines(config)
     # benchmark_gnns(config)
     # benchmark_dropouts(config)
-    # benchmark_hidden_dim(config)
-    benchmark_reg(config)
+    benchmark_hidden_dim(config)
+    # benchmark_reg(config)

@@ -37,12 +37,12 @@ class BaselinesTrainer(MyTrainer):
         metrics = self.set_mode_metrics(task)
 
         mimic3sample = self.set_task(task, mimic3base)  # use default task
-        train_ds, val_ds, test_ds = split_by_visit(mimic3sample, [0.8, 0.1, 0.1])
+        train_ds, val_ds, test_ds = split_by_visit(mimic3sample, [0.9, 0.1, 0])
 
         # create dataloaders (torch.data.DataLoader)
         self.train_loader = get_dataloader(train_ds, batch_size=32, shuffle=True)
         self.val_loader = get_dataloader(val_ds, batch_size=32, shuffle=False)
-        self.test_loader = get_dataloader(test_ds, batch_size=32, shuffle=False)
+        self.test_loader = get_dataloader(test_ds, batch_size=512, shuffle=False)
 
         model = parse_baselines(mimic3sample, baseline_name, self.mode, self.label_key)
         self.trainer = Trainer(
@@ -62,13 +62,29 @@ class BaselinesTrainer(MyTrainer):
 
     def visualize_embeddings(self):
 
+        from sklearn.manifold import Isomap, TSNE
+
         layout = go.Layout(
             autosize=False,
             width=600,
             height=600)
         fig = go.Figure(layout=layout)
 
+        data_batch = next(iter(self.test_loader))
         embeddings = self.trainer.model.embeddings
+
+        # TODO: Get patient embedding from one iteration
+        offset = 0
+        for k, v in self.node_dict.items():
+            indices = [i for i in range(offset, offset + 250)]
+            tsne = TSNE(n_components=2)
+            embeddings_2d = tsne.fit_transform(embeddings[indices])
+            offset += len(v)
+
+            fig.add_trace(go.Scatter(x=embeddings_2d[:, 0], y=embeddings_2d[:, 1], mode='markers', name=k))
+
+        fig.write_image()
+
 
     def set_task(self, task, base_dataset):
         name = self.config_data["name"]

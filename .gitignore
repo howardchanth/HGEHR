@@ -30,3 +30,6 @@ var/
 *.egg
 
 ./checkpoints
+./data
+./manuscripts
+./physionet.org

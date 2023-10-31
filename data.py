@@ -44,7 +44,7 @@ def load_graph(graph_path, labels_path, feat_dim=128, pretrained=None):
             test_masks.update({k: lb})
             continue
         indices = np.random.permutation(len(lb))
-        split = int(0.8 * len(lb))
+        split = int(0.9 * len(lb))
 
         all_visits = np.array([k for k in lb.keys()])
         train_visits = all_visits[indices[:split]]

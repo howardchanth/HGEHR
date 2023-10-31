@@ -136,7 +136,7 @@ class HGT(GNN):
     def get_logit(self, g, h=None, causal=False):
         layers = self.layers if not causal else self.rand_layers
         for n_id, ntype in enumerate(self.ntypes):
-            g.nodes[ntype].data['h'] = torch.tanh(self.adapt_ws[n_id](g.nodes[ntype].data['feat']))
+            g.nodes[ntype].data['h'] = F.gelu(self.adapt_ws[n_id](g.nodes[ntype].data['feat']))
         for i in range(self.n_layers):
             layers[i](g, 'h', 'h')
         return g.ndata['h']

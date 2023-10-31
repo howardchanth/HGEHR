@@ -13,7 +13,7 @@ datasets:
 
 #### Checkpoint settings
 checkpoint:
-  path: "./checkpoints/GAT_MIMIC3_READM"
+  path: "./checkpoints/GCN_MIMIC3_READM"
   save_checkpoint_freq: 2
 
 #### Optimizer settings
@@ -24,16 +24,12 @@ optimizer:
 
 #### GNN settings
 GNN:
-  name: "GAT"
-  num_layers: 1
+  name: "GCN"
+  num_layers: 2
   in_dim: 128
   hidden_dim: 256
   out_dim: 2
-  attn_drop: 0.2
   feat_drop: 0.1
-  num_heads: 4
-  num_out_heads: 1
-  negative_slope: 0.1
 
 #### training settings: learning rate scheme, loss, optimizer
 train:

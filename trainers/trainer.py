@@ -1,3 +1,4 @@
+import math
 from abc import ABC
 from collections import OrderedDict
 
@@ -32,13 +33,20 @@ class Trainer(ABC):
         self.device = "cuda" if config['gpu_ids'] else "cpu"
         self.use_gpu = True if self.device == "cuda" else False
 
+        self.init_temperature = 1
+
     def train(self) -> None:
         raise NotImplementedError
 
     def initialize_logger(self, name, notes=""):
         tags = self.config["logging"]["tags"]
+        mode = self.config["logging"]["mode"]
         wandb.init(name=name,
                    project='MT_EHR',
                    notes=notes,
+                   mode=mode,
                    config=self.config,
                    tags=tags)
+
+    def anneal_temperature(self, epoch):
+        self.temperature = max(0.1, math.exp(- epoch * self.init_temperature))

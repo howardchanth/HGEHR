@@ -36,13 +36,18 @@ class CausalSTGNNTrainer(Trainer):
         self.config_gnn = config["GNN"]
 
         # Initialize GNN model and optimizer
-        self.tasks = ["readm", "mort_pred", "los", "drug_rec"]
+        self.tasks = [
+            "mort_pred",
+            "los",
+            "drug_rec",
+            "readm",
+        ]
 
         # Load graph, labels and splits
         graph_path = self.config_data["graph_path"]
         labels_path = self.config_data["labels_path"]
         pretrained = self.config_data["pretrained"]
-        self.graph, self.labels, self.train_mask, self.test_mask = load_graph(graph_path, labels_path, pretrained)
+        self.graph, self.labels, self.train_mask, self.test_mask = load_graph(graph_path, labels_path, pretrained=pretrained)
 
         # Transform the graph
         self.graph = dgl.AddReverse()(self.graph)
@@ -79,7 +84,7 @@ class CausalSTGNNTrainer(Trainer):
 
                 sg = self.get_subgraphs(indices, "visit")
 
-                preds, rand_feat = self.gnns[t](sg, "visit", t)
+                preds, rand_feat, _ = self.gnns[t](sg, "visit", t)
 
                 unif_loss = self.unif_loss(rand_feat) if self.causal else 0
 
@@ -91,7 +96,7 @@ class CausalSTGNNTrainer(Trainer):
                 loss.backward()
                 self.optimizers[t].step()
 
-            train_metrics = metrics(preds, labels, t)
+            train_metrics = metrics(preds, labels, "readm")
             # Perform validation and testing
             test_metrics = self.evaluate()
 
@@ -127,37 +132,35 @@ class CausalSTGNNTrainer(Trainer):
             sg = self.get_subgraphs(indices, "visit")
 
             with torch.no_grad():
-                preds, _ = self.gnns[t](sg, "visit", t)
+                preds, _, _ = self.gnns[t](sg, "visit", t)
+                if t == "drug_rec":
+                    preds = preds.sigmoid()
 
             test_metrics.update(metrics(preds, labels, t, prefix=f"{t}"))
 
         return test_metrics
 
     def visualize_embeddings(self):
-        fig = go.Figure()
-        indices = self.get_indices_by_type()
-        embeddings = self.gnns["readm"].embeddings.detach().cpu().numpy()[indices]
-
-        tsne = Isomap(n_components=2)
-        embeddings_2d = tsne.fit_transform(embeddings)
-
-        # Create a scatter plot of the embeddings using Plotly
         layout = go.Layout(
             autosize=False,
             width=600,
             height=600
         )
-        fig = go.Figure(data=go.Scatter(x=embeddings_2d[:, 0], y=embeddings_2d[:, 1], mode='markers'), layout=layout)
-        wandb.log({"chart": fig})
+        fig = go.Figure(layout=layout)
+        embeddings = self.gnn.embeddings.detach().cpu().numpy()
 
-    def get_indices_by_type(self):
-        indices = []
+        from sklearn.manifold import Isomap, TSNE
+
         offset = 0
         for k, v in self.node_dict.items():
-            indices += [i for i in range(offset, offset + 250)]
+            indices = [i for i in range(offset, offset + 250)]
+            tsne = TSNE(n_components=2)
+            embeddings_2d = tsne.fit_transform(embeddings[indices])
             offset += len(v)
 
-        return np.array(indices)
+            fig.add_trace(go.Scatter(x=embeddings_2d[:, 0], y=embeddings_2d[:, 1], mode='markers', name=k))
+
+        wandb.log({"chart": fig})
 
     def unif_loss(self, feat):
         loss_fcn = KLDivergence()

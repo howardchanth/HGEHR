@@ -21,6 +21,8 @@ from data import load_graph
 from utils import metrics
 from losses import KLDivergence
 
+import pickle
+
 
 class CausalGNNTrainer(Trainer):
     def __init__(self, config: OrderedDict):
@@ -32,18 +34,15 @@ class CausalGNNTrainer(Trainer):
         self.config_gnn = config["GNN"]
 
         # Initialize GNN model and optimizer
-        self.tasks = [
-            "mort_pred",
-            "los",
-            "drug_rec",
-            "readm"
-        ]
+        self.tasks = self.config_train["tasks"]
 
         # Load graph, labels and splits
         graph_path = self.config_data["graph_path"]
         labels_path = self.config_data["labels_path"]
         pretrained = self.config_data["pretrained"]
-        self.graph, self.labels, self.train_mask, self.test_mask = load_graph(graph_path, labels_path, pretrained=pretrained)
+        self.graph, self.labels, self.train_mask, self.test_mask = load_graph(
+            graph_path, labels_path, pretrained=pretrained
+        )
 
         self.graph = dgl.AddReverse()(self.graph)
 
@@ -62,11 +61,13 @@ class CausalGNNTrainer(Trainer):
             self.node_dict.update({tp: torch.arange(self.graph.num_nodes(tp))})
 
         self.gnn = parse_gnn_model(self.config_gnn, self.graph, self.tasks, causal=True).to(self.device)
+        # read lists of edges
         self.optimizer = parse_optimizer(self.config_optim, self.gnn)
 
         self.causal = self.config_train["causal"]
         self.reg_coeff = self.config_train["reg"]
         self.n_samples = self.config_train["n_samples"]
+        self.init_temperature = self.config_train["temperature"]
 
     def train(self) -> None:
         print(f"Start training GNN")
@@ -75,6 +76,7 @@ class CausalGNNTrainer(Trainer):
 
         for epoch in training_range:
             self.gnn.train()
+            self.anneal_temperature(epoch)
             epoch_stats = {"Epoch": epoch + 1}
             preds, labels = None, None
             losses = []
@@ -93,19 +95,20 @@ class CausalGNNTrainer(Trainer):
                 unif_loss = self.unif_loss(rand_feat) if self.causal else 0
 
                 if t == "drug_rec":
+                    preds = preds / self.temperature * 10  # Temperature scaling
                     loss = F.binary_cross_entropy_with_logits(preds, labels) + \
                            unif_loss * self.reg_coeff
-                           # F.binary_cross_entropy_with_logits(preds_interv, labels) + \
-
+                    # F.binary_cross_entropy_with_logits(preds_interv, labels) + \
                 else:
+                    preds /= self.temperature
                     loss = F.cross_entropy(preds, labels) + \
                            unif_loss * self.reg_coeff
-                           # F.cross_entropy(preds_interv, labels) + \
+                    # F.cross_entropy(preds_interv, labels) + \
 
                 losses.append(loss.view(-1))
 
             var, mean = torch.var_mean(torch.cat(losses))
-            loss = mean + var
+            loss = mean + torch.nan_to_num(var, 0).item()
             loss.backward()
 
             # self.graph.ndata['feat'] = {k: v.detach().cpu() for k, v in self.gnn.feat.items()}
@@ -153,11 +156,14 @@ class CausalGNNTrainer(Trainer):
 
                 with torch.no_grad():
                     preds, _, _ = self.gnn(sg, "visit", t)
+                    # preds *= self.temperature
                     if t == "drug_rec":
                         preds = preds.sigmoid()
                     all_preds.append(preds)
 
             all_preds = torch.cat(all_preds)
+
+            self.save_graph(sg, t)
 
             test_metrics.update(metrics(all_preds, labels, t, prefix=f"{t}"))
 
@@ -199,7 +205,8 @@ class CausalGNNTrainer(Trainer):
     def unif_loss(self, feat):
         loss_fcn = KLDivergence()
         unif_feat = torch.rand_like(feat).to(self.device)
-        loss = loss_fcn(feat, unif_feat) + loss_fcn(unif_feat, feat)
+        feat = (feat - feat.min()) / (feat.max() - feat.min())
+        loss = (loss_fcn(feat, unif_feat) + loss_fcn(unif_feat, feat)) / 2
         return loss
 
     def get_masks(self, g: dgl.DGLGraph, train: bool, task: str):
@@ -255,7 +262,7 @@ class CausalGNNTrainer(Trainer):
         else:
             labels = torch.LongTensor([self.labels[t][i] for i in indices]).to(self.device)
 
-        if t == "mort" and train:
+        if t == "mort_pred" and train:
             indices = self.down_sample(indices, labels)
             labels = torch.LongTensor([self.labels[t][i] for i in indices]).to(self.device)
 
@@ -268,12 +275,19 @@ class CausalGNNTrainer(Trainer):
         :param label:
         :return:
         """
-        n = len(labels[labels == 1])
-        neg_indices = indices[labels == 0]
-        pos_indices = indices[labels == 1]
-        neg_indices = neg_indices[torch.randperm(len(neg_indices))[:n]]
+        n = len(labels[labels == 0])
+        neg_indices = indices[labels.detach().cpu() == 0]
+        pos_indices = indices[labels.detach().cpu() == 1]
+        indices = np.random.choice(len(neg_indices), size=len(pos_indices), replace=True)
+        neg_indices = neg_indices[indices]
 
-        return torch.cat(pos_indices, neg_indices)
+        return np.concatenate(
+            [pos_indices, neg_indices]
+        )
+
+    def save_graph(self, g, task):
+        with open(f'{self.checkpoint_manager.path}/graph_{task}.pkl', 'wb') as outp:
+            pickle.dump(g.cpu(), outp, pickle.HIGHEST_PROTOCOL)
 
     def logging(self, loss, train_metrics, test_metrics):
         wandb.log({"loss": loss})

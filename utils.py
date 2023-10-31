@@ -6,16 +6,12 @@ except ImportError:
 
 from collections import OrderedDict
 
-import logging
-
 import numpy as np
 
 from pyhealth.metrics import binary_metrics_fn, multilabel_metrics_fn, multiclass_metrics_fn
 
 import warnings
 warnings.filterwarnings('ignore')
-
-from sklearn.metrics import precision_score, recall_score, f1_score, auc, roc_curve, roc_auc_score
 
 
 def ordered_yaml():
@@ -34,6 +30,7 @@ def ordered_yaml():
     Loader.add_constructor(_mapping_tag, dict_constructor)
     return Loader, Dumper
 
+
 def load_config(name, config_dir="./configs/"):
     config_path = f"{config_dir}{name}"
 
@@ -42,10 +39,6 @@ def load_config(name, config_dir="./configs/"):
         config = yaml.load(f, loader)
         print(f"Loaded configs from {config_path}")
     return config
-
-
-def acc(outputs, targets):
-    return np.mean(outputs == targets)
 
 
 def metrics(outputs, targets, t, prefix="tr"):

@@ -43,14 +43,16 @@ class GAT(GNN):
         g = dgl.add_self_loop(g)
 
         h = g.ndata["feat"]
-        h = self.get_logit(g, h)
-        h = self.out[task](h)
+        logits = self.get_logit(g, h)
+        h = self.out[task](logits)
         out = h[g.ndata["_TYPE"] == 4]
 
         if self.causal:
             h = g.ndata["feat"]
             feat_rand = self.get_logit(g, h, True)
-            return out, feat_rand
+            feat_interv = logits + feat_rand
+            out_interv = self.out[task](feat_interv)
+            return out, feat_rand, out_interv
 
         self.set_embeddings(h)
 

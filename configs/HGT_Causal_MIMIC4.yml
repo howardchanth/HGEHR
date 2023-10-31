@@ -1,5 +1,5 @@
 #### general settings
-name: HGT_MTCausal_MIMIC4_RMDL_L1
+name: HGT_MTCausal_MIMIC4_RMDL
 train_type: causal-gnn
 eval_type: homo-graph
 gpu_ids: '0'
@@ -15,37 +15,46 @@ datasets:
 
 #### Checkpoint settings
 checkpoint:
-  path: "./checkpoints/HGT_Causal_MIMIC4_RMDL_L2"
+  path: "./checkpoints/HGT_Causal_MIMIC4_RMDL"
   save_checkpoint_freq: 2
 
 #### Optimizer settings
 optimizer:
   opt_method: "ADAM"
-  lr: 0.003 # Learning rate
-  weight_decay: 0.005
+  lr: 0.006 # Learning rate
+  weight_decay: 0
 
 #### GNN settings
 GNN:
   name: "HGT"
   num_layers: 2
   in_dim: 128
-  hidden_dim: 128
+  hidden_dim: 64
   out_dim: 506
-  num_heads: 2
+  num_heads: 16
+
   num_out_heads: 1
-  feat_drop: 0.5
+  feat_drop: 0.05
 
 #### training settings: learning rate scheme, loss, optimizer
 train:
-  num_epochs: 500
+  tasks: [
+    "mort_pred",
+    "los",
+    "drug_rec",
+    "readm"
+  ]
+  num_epochs: 1000
   batch_size: 4096
   causal: True
-  reg: 0.000001
-  n_samples: 1500
+  reg: 0.00005
+  n_samples: 2000
+  temperature: 0.005
 
 #### logging settings:
 logging:
   tags: [
     "MIMIC4",
-    "Pretrained"
+    "MT"
   ]
+  mode: online # offline, disabled, online

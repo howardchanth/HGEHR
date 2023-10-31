@@ -28,7 +28,7 @@ class Pretrainer:
 
         self.feat = nn.ParameterDict()
         self.feat.update({k: nn.Parameter(v) for k, v in self.graph.ndata['feat'].items()})
-        self.optimizer = torch.optim.Adam(list(self.feat.values()), lr=0.01)
+        self.optimizer = torch.optim.Adam(list(self.feat.values()), lr=0.05)
 
         self.output_path = config["graph_output_path"]
         self.margin = config["margin"]
@@ -66,7 +66,7 @@ class Pretrainer:
             for input_nodes, pos_g, neg_g, blocks in epoch_range:
                 pos_score, neg_score = self.compute_scores(pos_g, neg_g)
                 pos_score = pos_score.tile(5)
-                loss = (pos_score - neg_score + self.margin).norm(2)
+                loss = (pos_score - neg_score + self.margin).relu().sum()
 
                 self.optimizer.zero_grad()
                 loss.backward()

@@ -1,0 +1,53 @@
+#### general settings
+name: HGT_ST_MIMIC4_RMDL
+train_type: causal-gnn-st
+eval_type: homo-graph
+gpu_ids: '0'
+
+#### datasets
+datasets:
+  name: mimic4
+  dataset_path: "./data/mimic3_objects/mimic4_dp.pkl"
+  graph_path: "./data/graphs/mimic4_dp.pkl"
+  pretrained: "./data/graphs/mimic4_dp_ptr.pkl"
+  labels_path: "./data/graphs/mimic4_dp_labels.pkl"
+  entity_mapping: "./data/graphs/mimic4_dp_entity_mapping.pkl"
+
+#### Checkpoint settings
+checkpoint:
+  path: "./checkpoints/HGT_ST_MIMIC4_RMDL_L3"
+  save_checkpoint_freq: 2
+
+#### Optimizer settings
+optimizer:
+  opt_method: "ADAM"
+  lr: 0.004 # Learning rate
+  weight_decay: 0.005
+
+#### GNN settings
+GNN:
+  name: "HGT"
+  num_layers: 2
+  in_dim: 128
+  hidden_dim: 128
+  out_dim: 506
+  num_heads: 4
+  num_out_heads: 1
+  feat_drop: 0
+
+#### training settings: learning rate scheme, loss, optimizer
+train:
+  num_epochs: 500
+  batch_size: 4096
+  causal: False
+  reg: 0.000005
+  n_samples: 2000
+
+#### logging settings:
+logging:
+  tags: [
+    "MIMIC4",
+    "Pretrained",
+    "ST"
+  ]
+  mode: disabled # offline, disabled, online

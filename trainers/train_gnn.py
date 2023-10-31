@@ -17,7 +17,7 @@ from parse import (
 )
 
 from data import load_graph
-from utils import acc, metrics
+from utils import metrics
 
 
 class GNNTrainer(Trainer):

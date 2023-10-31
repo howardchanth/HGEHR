@@ -1,5 +1,5 @@
 graph_path: "./data/graphs/mimic4_dp.pkl"
 labels_path: "./data/graphs/mimic4_dp_labels.pkl"
 graph_output_path: "./data/graphs/mimic4_dp_ptr.pkl"
-n_epoch: 50
+n_epoch: 200
 margin: 0.1

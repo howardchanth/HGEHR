@@ -196,7 +196,7 @@ def parse_baselines(dataset, baseline_name, mode, label_key):
     elif baseline_name == "Deepr":
         return Deepr(
             dataset=dataset,
-            feature_keys=["conditions", "procedures"],
+            feature_keys=["conditions", "procedures", "prescriptions"],
             label_key=label_key,
             mode=mode
         )

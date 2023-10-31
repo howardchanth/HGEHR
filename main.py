@@ -7,6 +7,7 @@ import torch
 from trainers import (
     GNNTrainer,
     CausalGNNTrainer,
+    CausalSTGNNTrainer,
     BaselinesTrainer
 )
 
@@ -31,20 +32,22 @@ mode = "train"
 
 def main():
     if mode == "train":
-        config_name = "HGT_Causal_MIMIC4.yml"
+        config_name = "HGT_Causal_MIMIC3.yml"
         config = load_config(config_name)
 
         if config["train_type"] == "gnn":
             trainer = GNNTrainer(config)
         elif config["train_type"] == "causal-gnn":
             trainer = CausalGNNTrainer(config)
+        elif config["train_type"] == "causal-gnn-st":
+            trainer = CausalSTGNNTrainer(config)
         elif config["train_type"] == "baseline":
             trainer = BaselinesTrainer(config)
         else:
             raise NotImplementedError("This type of model is not implemented")
         trainer.train()
     elif mode == "pretrain":
-        config_name = "MIMIC4_TransE.yml"
+        config_name = "MIMIC3_TransE.yml"
         config = load_config(config_name, "./configs/pretrain/")
 
         pretrainer = Pretrainer(config)

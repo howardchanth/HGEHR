@@ -54,10 +54,14 @@ class HeteroRGCN(GNN):
         logits = self.get_logit(g)
         self.embeddings = torch.cat(list(logits.values()))
         out = self.out[task](logits[out_key])
+
         if self.causal:
             feat_rand = self.get_logit(g, causal=True)
+            feat_interv = {k: logits[k] + feat_rand[k] for k in feat_rand.keys()}
+            out_interv = self.out[task](feat_interv[out_key])
             feat_rand = torch.cat(list(feat_rand.values()))
-            return out, feat_rand
+            return out, feat_rand, out_interv
+
 
         return out
 

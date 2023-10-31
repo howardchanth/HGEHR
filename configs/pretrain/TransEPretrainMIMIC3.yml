@@ -1,5 +1,0 @@
-graph_path: "./data/graphs/mimic3_dp.pkl"
-labels_path: "./data/graphs/mimic3_dp_labels.pkl"
-graph_output_path: "./data/graphs/mimic3_dp_ptr.pkl"
-n_epoch: 50
-margin: 0.1
